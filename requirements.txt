@@ -1,3 +1,5 @@
 langchain
 python-dotenv
 gradio
+langchain_community
+

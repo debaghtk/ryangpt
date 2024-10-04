@@ -55,7 +55,7 @@ embeddings = OpenAIEmbeddings()
 vector_store = FAISS.from_documents(split_documents, embeddings)
 
 # Set up the OpenAI LLM model
-llm = OpenAI(temperature=0.3, model_name="gpt-3.5-turbo")  # Lower temperature keeps responses more fact-based
+llm = OpenAI(temperature=0.3, model="gpt-3.5-turbo")  # Lower temperature keeps responses more fact-based
 
 # Define the conversation history
 conversation_history = []

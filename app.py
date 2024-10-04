@@ -1,5 +1,4 @@
 import os
-import openai
 import gradio as gr
 from langchain import OpenAI
 from langchain.vectorstores import FAISS
@@ -7,9 +6,16 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.document_loaders import TextLoader
 from langchain.schema import Document
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Set your OpenAI API key from environment variable
+# openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Define folder path
-folder_path = '.'  # Replace with the folder containing your text files
+folder_path = 'transcriptions'  # Replace with the folder containing your text files
 
 # Load all text files from the folder
 documents = []

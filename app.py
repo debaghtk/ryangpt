@@ -95,7 +95,7 @@ def user_interaction(input_text, chat_history):
     return chat_history, chat_history
 
 with gr.Blocks() as demo:
-    gr.Markdown("## YouTube Transcript Chatbot")
+    gr.Markdown("## Ryan GPT")
     chatbot = gr.Chatbot()
     user_input = gr.Textbox(placeholder="Ask a question based on the transcription...")
     submit_btn = gr.Button("Submit")

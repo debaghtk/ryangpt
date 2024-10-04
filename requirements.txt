@@ -3,3 +3,4 @@ python-dotenv
 gradio
 langchain_community
 openai
+tiktoken

@@ -4,3 +4,4 @@ gradio
 langchain_community
 openai
 tiktoken
+faiss-cpu

@@ -1,7 +1,9 @@
-langchain
-python-dotenv
-gradio
-langchain_community
-openai==0.28
-tiktoken
-faiss-cpu
+langchain<0.100.0
+guardrails-ai==0.4.0
+pydantic==1.10.9
+typer[all]==0.9.0
+python-dotenv>=0.21.0
+openai>=0.27.0
+gradio>=3.26.0
+faiss-cpu>=1.7.3
+

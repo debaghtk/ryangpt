@@ -1,18 +1,20 @@
 import os
 import gradio as gr
-from langchain import OpenAI
 from langchain.vectorstores import FAISS
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.document_loaders import TextLoader
 from langchain.schema import Document
 from dotenv import load_dotenv
+from openai import OpenAI
+
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Set your OpenAI API key from environment variable
-# openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key)
 
 # Define folder path
 folder_path = 'transcriptions'  # Replace with the folder containing your text files
@@ -30,7 +32,6 @@ for filename in os.listdir(folder_path):
         base_name = os.path.splitext(filename)[0]
         video_id = base_name.replace("_transcription", "")  # Remove '_transcription' from the base name
         youtube_link = f"https://www.youtube.com/watch?v={video_id}"
-
 
         # Attach metadata with YouTube link information
         for doc in loaded_documents:
@@ -51,11 +52,8 @@ for document in documents:
         print(f"Split document with metadata: {split_doc.metadata}")  # Debug print
 
 # Create OpenAI embeddings and use FAISS as the vector store for retrieval
-embeddings = OpenAIEmbeddings()
+embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
 vector_store = FAISS.from_documents(split_documents, embeddings)
-
-# Set up the OpenAI LLM model
-llm = OpenAI(temperature=0.3, model="gpt-3.5-turbo")  # Lower temperature keeps responses more fact-based
 
 # Define the conversation history
 conversation_history = []
@@ -78,8 +76,13 @@ def chatbot_response(user_input):
             youtube_link = doc.metadata["youtube_link"]
 
     # Generate a response using the LLM with the context
-    prompt = f"Context: {context}\n\nQuestion: {user_input}\nAnswer:"
-    answer = llm(prompt)
+    messages = [
+        {"role": "system", "content": "You are an assistant that provides helpful answers based on the context provided."},
+        {"role": "user", "content": f"Context: {context}\n\nQuestion: {user_input}"}
+    ]
+    response = client.chat.completions.create(model="gpt-3.5-turbo",
+    messages=messages)
+    answer = response.choices[0].message.content
 
     # Update answer to include the YouTube link
     answer_with_link = f"{answer}\n\nFor more information, watch the video here: {youtube_link}"

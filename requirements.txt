@@ -2,6 +2,6 @@ langchain
 python-dotenv
 gradio
 langchain_community
-openai
+openai==0.28
 tiktoken
 faiss-cpu

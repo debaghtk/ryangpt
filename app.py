@@ -1,9 +1,9 @@
 import os
 import gradio as gr
-from langchain.vectorstores import FAISS
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.document_loaders import TextLoader
+from langchain_community.document_loaders import TextLoader
 from langchain.schema import Document
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -38,7 +38,6 @@ for filename in os.listdir(folder_path):
             doc.metadata = {"youtube_link": youtube_link}
             print(f"Attached metadata for document: {youtube_link}")  # Debug print
         documents.extend(loaded_documents)
-
 # Split documents into smaller chunks for easier retrieval
 text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 split_documents = []
@@ -63,13 +62,14 @@ def chatbot_response(user_input):
     global conversation_history
 
     # Retrieve relevant documents based on user input
-    relevant_docs = vector_store.similarity_search(user_input, k=3)
+    relevant_docs = vector_store.similarity_search_with_relevance_scores(user_input, k=3, score_threshold=0.7)
+    relevant_docs = [doc for doc, score in relevant_docs if score > 0.7][:1]
     if not relevant_docs:
         return "I couldn't find relevant information."
 
     # Collect the content from relevant documents and prepare a context
     context = ""
-    youtube_link = "Link not found"  # Default if no metadata is found
+    youtube_link = "Link not"  # Default if no metadata is found
     for doc in relevant_docs:
         context += doc.page_content + "\n"
         if "youtube_link" in doc.metadata:
@@ -77,7 +77,7 @@ def chatbot_response(user_input):
 
     # Generate a response using the LLM with the context
     messages = [
-        {"role": "system", "content": "You are an assistant that provides helpful answers based on the context provided."},
+        {"role": "system", "content": "You are Ryan Fernando, a celebrity nutritionist and celebrity himself with more than a million followers on social media. You are answering questions based on the transcription of your YouTube videos. You are witty, clever and sarcastic."},
         {"role": "user", "content": f"Context: {context}\n\nQuestion: {user_input}"}
     ]
     response = client.chat.completions.create(model="gpt-3.5-turbo",
@@ -100,10 +100,11 @@ def user_interaction(input_text, chat_history):
 with gr.Blocks() as demo:
     gr.Markdown("## Ryan GPT")
     chatbot = gr.Chatbot()
-    user_input = gr.Textbox(placeholder="Ask a question based on the transcription...")
+    user_input = gr.Textbox(interactive=True, lines=1, placeholder="Ask a question based on the transcription...")
     submit_btn = gr.Button("Submit")
 
     submit_btn.click(user_interaction, [user_input, chatbot], [chatbot, chatbot])
 
+
 # Launch the Gradio app
-demo.launch()
+demo.launch(debug=True)

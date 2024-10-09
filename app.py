@@ -7,6 +7,7 @@ from langchain_community.document_loaders import TextLoader
 from langchain.schema import Document
 from dotenv import load_dotenv
 from openai import OpenAI
+import tiktoken  # Make sure to install this library if you haven't already
 
 
 # Load environment variables from .env file
@@ -57,35 +58,57 @@ vector_store = FAISS.from_documents(split_documents, embeddings)
 # Define the conversation history
 conversation_history = []
 
+# Function to count tokens
+def count_tokens(messages):
+    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")  # Adjust model name as needed
+    total_tokens = sum(len(encoding.encode(message['content'])) for message in messages)
+    return total_tokens
+
+# Function to truncate messages to fit within the token limit
+def truncate_messages(messages, max_tokens):
+    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+    total_tokens = 0
+    truncated_messages = []
+
+    for message in reversed(messages):
+        message_tokens = len(encoding.encode(message['content']))
+        if total_tokens + message_tokens > max_tokens:
+            break
+        total_tokens += message_tokens
+        truncated_messages.append(message)
+
+    return list(reversed(truncated_messages))
+
 # Function to handle user input and generate response
 def chatbot_response(user_input):
     global conversation_history
 
-    # Retrieve relevant documents based on user input
-    relevant_docs = vector_store.similarity_search_with_relevance_scores(user_input, k=3, score_threshold=0.7)
-    relevant_docs = [doc for doc, score in relevant_docs if score > 0.7][:1]
-    if not relevant_docs:
-        return "I couldn't find relevant information."
+    # Define the maximum context length
+    max_context_length = 16385
 
-    # Collect the content from relevant documents and prepare a context
-    context = ""
-    youtube_link = "Link not"  # Default if no metadata is found
-    for doc in relevant_docs:
-        context += doc.page_content + "\n"
-        if "youtube_link" in doc.metadata:
-            youtube_link = doc.metadata["youtube_link"]
+    # Prepare the messages for the API
+    messages = [
+        {"role": "system", "content": "You are Ryan Fernando, a celebrity nutritionist and celebrity himself with more than a million followers on social media. You are answering questions based on the transcription of your YouTube videos. You are also a helpful assistant."},
+        {"role": "user", "content": user_input}
+    ]
+
+    # Add conversation history to messages
+    messages = conversation_history + messages
+
+    # Truncate messages if they exceed the maximum context length
+    if count_tokens(messages) > max_context_length:
+        messages = truncate_messages(messages, max_context_length)
 
     # Generate a response using the LLM with the context
-    messages = [
-        {"role": "system", "content": "You are Ryan Fernando, a celebrity nutritionist and celebrity himself with more than a million followers on social media. You are answering questions based on the transcription of your YouTube videos. You are witty, clever and sarcastic."},
-        {"role": "user", "content": f"Context: {context}\n\nQuestion: {user_input}"}
-    ]
-    response = client.chat.completions.create(model="gpt-3.5-turbo",
-    messages=messages)
+    response = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
     answer = response.choices[0].message.content
 
-    # Update answer to include the YouTube link
-    answer_with_link = f"{answer}\n\nFor more information, watch the video here: {youtube_link}"
+    # Update answer to include the YouTube link if found
+    youtube_link = "Link not found"  # Default if no metadata is found
+    if youtube_link != "Link not found":
+        answer_with_link = f"{answer}\n\nFor more information, watch the video here: {youtube_link}"
+    else:
+        answer_with_link = answer
 
     # Update conversation history
     conversation_history.append((user_input, answer_with_link))

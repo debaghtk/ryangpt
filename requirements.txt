@@ -7,6 +7,7 @@ openai
 gradio==5.0.1
 faiss-cpu
 langchain-community
+langchain-openai
 langdetect
 googletrans
 youtube-transcript-api

@@ -104,12 +104,6 @@ def chatbot_response(user_input):
     conversation_history.append((user_input, answer_with_link_and_description))
     return answer_with_link_and_description
 
-# Create a Gradio interface for the chatbot
-def user_interaction(input_text, chat_history):
-    response = chatbot_response(input_text)
-    chat_history.append((input_text, response))
-    return chat_history, chat_history
-
 # Function to dynamically generate a concise description based on the user's query
 def generate_description_from_query(query, relevant_docs):
     if relevant_docs:
@@ -132,12 +126,9 @@ def generate_description_from_query(query, relevant_docs):
     else:
         return "No description available."
 
+# Create a Gradio ChatInterface for the chatbot
 with gr.Blocks() as demo:
     gr.Markdown("## Ryan GPT")
-    chatbot = gr.Chatbot()
-    user_input = gr.Textbox(interactive=True, lines=1, placeholder="Ask a question based on the transcription...")
-    submit_btn = gr.Button("Submit")
-
-    submit_btn.click(user_interaction, [user_input, chatbot], [chatbot, chatbot])
+    chat_interface = gr.ChatInterface(fn=chatbot_response, title="Ryan GPT", description="Ask a question based on the transcription...")
 
 demo.launch(debug=True)

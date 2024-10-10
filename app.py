@@ -111,7 +111,13 @@ def chatbot_response(user_input, chat_history):
     return answer_with_link_and_description
 
 # Create a Gradio ChatInterface for the chatbot
-with gr.Blocks() as demo:
-    chat_interface = gr.ChatInterface(fn=chatbot_response, title="Ryan GPT", description="Your Question on Nutrition here ...")
+# with gr.Blocks() as demo:
+#     chat_interface = gr.ChatInterface(fn=chatbot_response, title="Ryan GPT", description="Your Question on Nutrition here ...")
 
-demo.launch(debug=True)
+# demo.launch(debug=True)
+interface = gr.ChatInterface(
+    fn=chatbot_response,
+    type="messages"  # Set type to 'messages'
+)
+
+interface.launch()

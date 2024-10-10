@@ -89,46 +89,27 @@ def chatbot_response(user_input):
     if count_tokens(messages) > max_context_length:
         messages = truncate_messages(messages, max_context_length)
 
+    relevant_docs = vector_store.similarity_search(user_input, k=1)
+    if relevant_docs:
+        relevant_text = relevant_docs[0].page_content
+        youtube_link = relevant_docs[0].metadata.get("youtube_link", "Link not found")
+        messages.append({"role": "system", "content": f"Summarize the following content in one sentence related to '{user_input}':\n\n{relevant_text}\n\nSummarize in one line."})
+    else:
+        youtube_link = "No relevant video found."
+
     response = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
     answer = response.choices[0].message.content
 
-    relevant_docs = vector_store.similarity_search(user_input, k=1)
-    description = generate_description_from_query(user_input, relevant_docs)
-
     if relevant_docs:
-        youtube_link = relevant_docs[0].metadata.get("youtube_link", "Link not found")
-        answer_with_link_and_description = f"{answer}\n\nDescription: {description}\nWatch the video here: {youtube_link}"
+        answer_with_link_and_description = f"{answer}\n\nWatch the video here: {youtube_link}"
     else:
-        answer_with_link_and_description = f"{answer}\n\nNo relevant video found."
+        answer_with_link_and_description = f"{answer}"
 
     conversation_history.append((user_input, answer_with_link_and_description))
     return answer_with_link_and_description
 
-# Function to dynamically generate a concise description based on the user's query
-def generate_description_from_query(query, relevant_docs):
-    if relevant_docs:
-        relevant_text = relevant_docs[0].page_content
-        
-        messages = [
-            {"role": "system", "content": "You are a helpful assistant. Summarize text related to the user's query."},
-            {"role": "user", "content": f"Summarize the following content in one sentence related to '{query}':\n\n{relevant_text}\n\nSummarize in one line."}
-        ]
-        
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            max_tokens=50,
-            temperature=0.5
-        )
-        
-        description = response.choices[0].message.content.strip()
-        return description
-    else:
-        return "No description available."
-
 # Create a Gradio ChatInterface for the chatbot
 with gr.Blocks() as demo:
-    gr.Markdown("## Ryan GPT")
-    chat_interface = gr.ChatInterface(fn=chatbot_response, title="Ryan GPT", description="Ask a question based on the transcription...")
+    chat_interface = gr.ChatInterface(fn=chatbot_response, title="Ryan GPT", description="Your Question on Nutrition here ...")
 
 demo.launch(debug=True)

@@ -4,7 +4,7 @@ pydantic
 typer[all]
 python-dotenv
 openai
-gradio
+gradio==4.44.1
 faiss-cpu
 langchain-community
 langdetect

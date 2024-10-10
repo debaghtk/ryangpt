@@ -56,7 +56,7 @@ conversation_history = []
 # Function to count tokens
 def count_tokens(messages):
     encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
-    return sum(len(encoding.encode(message['content'])) for message in messages)
+    return sum(len(encoding.encode(message['content'])) for message in messages if 'content' in message)
 
 # Function to truncate messages to fit within the token limit
 def truncate_messages(messages, max_tokens):
@@ -65,16 +65,17 @@ def truncate_messages(messages, max_tokens):
     truncated_messages = []
 
     for message in reversed(messages):
-        message_tokens = len(encoding.encode(message['content']))
-        if total_tokens + message_tokens > max_tokens:
-            break
-        total_tokens += message_tokens
-        truncated_messages.append(message)
+        if 'content' in message:
+            message_tokens = len(encoding.encode(message['content']))
+            if total_tokens + message_tokens > max_tokens:
+                break
+            total_tokens += message_tokens
+            truncated_messages.append(message)
 
     return list(reversed(truncated_messages))
 
 # Function to handle user input and generate response
-def chatbot_response(user_input):
+def chatbot_response(user_input, chat_history):
     global conversation_history
 
     max_context_length = 16385
@@ -90,12 +91,12 @@ def chatbot_response(user_input):
         messages = truncate_messages(messages, max_context_length)
 
     relevant_docs = vector_store.similarity_search(user_input, k=1)
-    if relevant_docs:
-        relevant_text = relevant_docs[0].page_content
-        youtube_link = relevant_docs[0].metadata.get("youtube_link", "Link not found")
-        messages.append({"role": "system", "content": f"Summarize the following content in one sentence related to '{user_input}':\n\n{relevant_text}\n\nSummarize in one line."})
-    else:
-        youtube_link = "No relevant video found."
+    # if relevant_docs:
+    #     relevant_text = relevant_docs[0].page_content
+    #     youtube_link = relevant_docs[0].metadata.get("youtube_link", "Link not found")
+    #     messages.append({"role": "system", "content": f"Summarize the following content in one sentence related to '{user_input}':\n\n{relevant_text}\n\nSummarize in one line."})
+    # else:
+    #     youtube_link = "No relevant video found."
 
     response = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
     answer = response.choices[0].message.content
@@ -105,7 +106,8 @@ def chatbot_response(user_input):
     else:
         answer_with_link_and_description = f"{answer}"
 
-    conversation_history.append((user_input, answer_with_link_and_description))
+    conversation_history.append({"role": "user", "content": user_input})
+    conversation_history.append({"role": "assistant", "content": answer_with_link_and_description})
     return answer_with_link_and_description
 
 # Create a Gradio ChatInterface for the chatbot

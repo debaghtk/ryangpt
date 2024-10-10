@@ -102,23 +102,55 @@ def chatbot_response(user_input):
     # Generate a response using the LLM with the context
     response = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
     answer = response.choices[0].message.content
+    # Retrieve the most relevant document based on the user's input (e.g., using FAISS)
+    relevant_docs = vector_store.similarity_search(user_input, k=1)
 
-    # Update answer to include the YouTube link if found
-    youtube_link = "Link not found"  # Default if no metadata is found
-    if youtube_link != "Link not found":
-        answer_with_link = f"{answer}\n\nFor more information, watch the video here: {youtube_link}"
+    # Generate a description based on the user's query and the relevant document
+    description = generate_description_from_query(user_input, relevant_docs)
+
+    # Include the YouTube link from the metadata, if available
+    if relevant_docs:
+        youtube_link = relevant_docs[0].metadata.get("youtube_link", "Link not found")
+        # Update the answer to include both the dynamically generated description and the YouTube link
+        answer_with_link_and_description = f"{answer}\n\nDescription: {description}\nWatch the video here: {youtube_link}"
     else:
-        answer_with_link = answer
+        answer_with_link_and_description = f"{answer}\n\nNo relevant video found."
 
     # Update conversation history
-    conversation_history.append((user_input, answer_with_link))
-    return answer_with_link
+    conversation_history.append((user_input, answer_with_link_and_description))
+    return answer_with_link_and_description
 
 # Create a Gradio interface for the chatbot
 def user_interaction(input_text, chat_history):
     response = chatbot_response(input_text)
     chat_history.append((input_text, response))
     return chat_history, chat_history
+
+# Function to dynamically generate a concise description (1-2 lines) based on the user's query
+def generate_description_from_query(query, relevant_docs):
+    if relevant_docs:
+        # Use the content from the most relevant document
+        relevant_text = relevant_docs[0].page_content
+        
+        # Prepare the chat messages for OpenAI to generate a one-line description
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant. Summarize text related to the user's query."},
+            {"role": "user", "content": f"Summarize the following content in one sentence related to '{query}':\n\n{relevant_text}\n\nSummarize in one line."}
+        ]
+        
+        # Call OpenAI's chat completion endpoint to get a one-line summary
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",  # Using chat model
+            messages=messages,
+            max_tokens=50,  # Limit the response to one or two lines
+            temperature=0.5  # Control creativity; lower temp means more focused output
+        )
+        
+        # Extract and return the generated description
+        description = response.choices[0].message.content.strip()
+        return description
+    else:
+        return "No description available."
 
 with gr.Blocks() as demo:
     gr.Markdown("## Ryan GPT")

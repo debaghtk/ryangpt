@@ -11,5 +11,7 @@ langchain-openai
 langdetect
 googletrans
 youtube-transcript-api
+
+# dev dependencies
 watchdog
 jupytext

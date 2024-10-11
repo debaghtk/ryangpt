@@ -6,15 +6,16 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 from langchain.schema import Document
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import AsyncOpenAI
 import tiktoken
+import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Set your OpenAI API key from environment variable
 openai_api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=openai_api_key)
+client = AsyncOpenAI(api_key=openai_api_key)
 
 # Define folder path
 folder_path = 'transcriptions'
@@ -61,63 +62,98 @@ def count_tokens(messages):
 # Function to truncate messages to fit within the token limit
 def truncate_messages(messages, max_tokens):
     encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
-    total_tokens = 0
     truncated_messages = []
+    total_tokens = 0
 
+    # Try to include the system message if it exists
+    system_message = next((msg for msg in messages if msg['role'] == 'system'), None)
+    if system_message:
+        truncated_messages.append(system_message)
+        total_tokens = count_tokens([system_message])
+
+    # Always include the latest user message
+    user_message = next(msg for msg in reversed(messages) if msg['role'] == 'user')
+    truncated_messages.append(user_message)
+    total_tokens += count_tokens([user_message])
+
+    # Add other messages if there's room, prioritizing more recent messages
     for message in reversed(messages):
-        if 'content' in message:
-            message_tokens = len(encoding.encode(message['content']))
-            if total_tokens + message_tokens > max_tokens:
+        if message['role'] != 'system' and message != user_message:
+            message_tokens = count_tokens([message])
+            if total_tokens + message_tokens <= max_tokens:
+                truncated_messages.insert(1, message)  # Insert after system message or at the beginning
+                total_tokens += message_tokens
+            else:
                 break
-            total_tokens += message_tokens
-            truncated_messages.append(message)
 
-    return list(reversed(truncated_messages))
+    return truncated_messages
+
+# Function to get dynamic threshold
+def get_dynamic_threshold(scores):
+    if not scores:
+        return 0
+    mean_score = sum(scores) / len(scores)
+    return mean_score * 0.8  # You can adjust this multiplier
 
 # Function to handle user input and generate response
-def chatbot_response(user_input, chat_history):
+async def chatbot_response(user_input, chat_history):
     global conversation_history
 
-    max_context_length = 16385
+    max_context_length = 16000  # Leave some room for the response
 
-    messages = [
-        {"role": "system", "content": "You are Ryan Fernando, a celebrity nutritionist and celebrity himself with more than a million followers on social media. You are answering questions based on the transcription of your YouTube videos. You are also a helpful assistant."},
-        {"role": "user", "content": user_input}
-    ]
+    system_message = {"role": "system", "content": "You are Ryan Fernando, a celebrity nutritionist and celebrity himself with more than a million followers on social media. You are answering questions based on the transcription of your YouTube videos. You are also a helpful assistant."}
+    
+    messages = [system_message] + conversation_history + [{"role": "user", "content": user_input}]
 
-    messages = conversation_history + messages
+    relevant_docs = vector_store.similarity_search_with_score(user_input, k=3)
+    
+    # Calculate dynamic threshold
+    scores = [score for _, score in relevant_docs]
+    threshold = get_dynamic_threshold(scores)
 
-    if count_tokens(messages) > max_context_length:
-        messages = truncate_messages(messages, max_context_length)
+    filtered_docs = []
+    for doc, score in relevant_docs:
+        if score > threshold:
+            filtered_docs.append(doc)
+            relevant_text = doc.page_content
+            youtube_link = doc.metadata.get("youtube_link", "Link not found")
+            messages.append({"role": "system", "content": f"Consider this relevant information (relevance score: {score:.2f}): {relevant_text}"})
 
-    relevant_docs = vector_store.similarity_search(user_input, k=1)
-    # if relevant_docs:
-    #     relevant_text = relevant_docs[0].page_content
-    #     youtube_link = relevant_docs[0].metadata.get("youtube_link", "Link not found")
-    #     messages.append({"role": "system", "content": f"Summarize the following content in one sentence related to '{user_input}':\n\n{relevant_text}\n\nSummarize in one line."})
-    # else:
-    #     youtube_link = "No relevant video found."
+        # Check token count and break if we're approaching the limit
+        if count_tokens(messages) > max_context_length:
+            break
 
-    response = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+    if filtered_docs:
+        messages.append({"role": "system", "content": f"Based on the above information, answer the user's question: {user_input}"})
+    else:
+        youtube_link = "No relevant video found."
+
+    # Final truncation to ensure we're within limits
+    messages = truncate_messages(messages, max_context_length)
+
+    response = await client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
     answer = response.choices[0].message.content
 
-    if relevant_docs:
-        answer_with_link_and_description = f"{answer}\n\nWatch the video here: {youtube_link}"
+    if filtered_docs:
+        most_relevant_doc = max(relevant_docs, key=lambda x: x[1])[0]
+        most_relevant_link = most_relevant_doc.metadata.get("youtube_link", "Link not found")
+        answer_with_link_and_description = f"{answer}\n\nWatch the most relevant video here: {most_relevant_link}"
     else:
-        answer_with_link_and_description = f"{answer}"
+        answer_with_link_and_description = f"{answer}\n\nNo relevant video found for this query."
 
+    # Update conversation history, but limit it to maintain context without exceeding token limits
     conversation_history.append({"role": "user", "content": user_input})
     conversation_history.append({"role": "assistant", "content": answer_with_link_and_description})
+    conversation_history = truncate_messages(conversation_history, max_context_length // 2)  # Use half the max length for history
+
     return answer_with_link_and_description
 
 # Create a Gradio ChatInterface for the chatbot
-# with gr.Blocks() as demo:
-#     chat_interface = gr.ChatInterface(fn=chatbot_response, title="Ryan GPT", description="Your Question on Nutrition here ...")
-
-# demo.launch(debug=True)
 interface = gr.ChatInterface(
     fn=chatbot_response,
     type="messages"  # Set type to 'messages'
 )
 
-interface.launch()
+# Run the interface
+if __name__ == "__main__":
+    interface.launch()

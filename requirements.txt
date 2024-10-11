@@ -12,3 +12,4 @@ langdetect
 googletrans
 youtube-transcript-api
 watchdog
+jupytext

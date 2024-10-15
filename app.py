@@ -189,8 +189,7 @@ async def chatbot_response(user_input, chat_history):
 # Create a Gradio ChatInterface for the chatbot
 interface = gr.ChatInterface(
     fn=chatbot_response,
-    type="messages",
-    theme=gr.themes.Dark()  # Set the theme to dark mode
+    type="messages"  # Set type to 'messages'
 )
 
 # Run the interface

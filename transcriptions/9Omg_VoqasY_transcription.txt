@@ -1,6 +1,22 @@
 Title: This AI will screen your health
 
-Description: New Episode on AI screening with Dr Sathya and Dr Manish Matoo will be out tonight - Health Shotzz Podcast
-#beprohealth
+Description: New Episode on AI screening with Dr Sathya and Dr Manish Matoo will be out tonight - Health Shotzz Podcast #beprohealth
 
-Transcript: the modern day conveniences that liberalization of the country brought is huge right I mean we are all living it and enjoying it but along with that came the bane of some of these lifestyle diseases living with diabetes worldwide people have high blood sugars there's an increased risk of cancer one out of three adults have high blood pressure propensity of people to have these issues postco has increased what we've realized in a post pandemic world is that loneliness and social isolation is the new sitting and the new smoking but we're hearing of so many people getting strok nowadays
+Transcript:
+[0.12 - 5.32] the modern day
+[2.64 - 7.84] conveniences that liberalization of the
+[5.32 - 12.52] country brought is huge right I mean we
+[7.84 - 12.52] are all living it and enjoying
+[12.76 - 18.56] it but along with that came the bane of
+[15.60 - 21.12] some of these lifestyle diseases living
+[18.56 - 23.04] with diabetes worldwide people have high
+[21.12 - 26.04] blood sugars there's an increased risk
+[23.04 - 29.08] of cancer one out of three adults have
+[26.04 - 30.60] high blood pressure propensity of people
+[29.08 - 33.92] to have these issues postco has
+[30.60 - 36.04] increased what we've realized in a post
+[33.92 - 38.44] pandemic world is that loneliness and
+[36.04 - 40.16] social isolation is the new sitting and
+[38.44 - 43.40] the new smoking but we're hearing of so
+[40.16 - 43.40] many people getting strok
+[47.24 - 50.24] nowadays

@@ -2,4 +2,10 @@ Title: My toes feel freeeeee!
 
 Description: 
 
-Transcript: hi these are the shoes uh they're called the Vim shoes five fingers and you can buy them in India on a website called gamble or order them from the US at vim.com I have no commercial affiliation but I love these shoes
+Transcript:
+[1.76 - 7.56] hi these are the shoes uh they're called
+[4.28 - 9.04] the Vim shoes five fingers and you can
+[7.56 - 11.44] buy them in India on a website called
+[9.04 - 14.20] gamble or order them from the US at
+[11.44 - 17.08] vim.com I have no commercial affiliation
+[14.20 - 17.08] but I love these shoes

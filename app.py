@@ -3,12 +3,14 @@ import gradio as gr
 from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.document_loaders import TextLoader
 from langchain.schema import Document
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 import tiktoken
 import asyncio
+import re
+import faiss
+import numpy as np
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,35 +22,61 @@ client = AsyncOpenAI(api_key=openai_api_key)
 # Define folder path
 folder_path = 'transcriptions'
 
-# Load all text files from the folder
+# Load and process the transcripts
 documents = []
+folder_path = "transcriptions"  # Ensure this path is correct
+
 for filename in os.listdir(folder_path):
     if filename.endswith(".txt"):
         file_path = os.path.join(folder_path, filename)
-        loader = TextLoader(file_path)
-        loaded_documents = loader.load()
+        with open(file_path, "r", encoding='utf-8') as f:
+            content = f.read()
 
         # Extract video ID from filename
         base_name = os.path.splitext(filename)[0]
         video_id = base_name.replace("_transcription", "")
-        youtube_link = f"https://www.youtube.com/watch?v={video_id}"
+        youtube_link_base = f"https://www.youtube.com/watch?v={video_id}"
 
-        # Attach metadata with YouTube link information
-        for doc in loaded_documents:
-            doc.metadata = {"youtube_link": youtube_link}
-        documents.extend(loaded_documents)
+        # Parse the transcript content to extract entries with timestamps
+        lines = content.splitlines()
+        for line in lines:
+            # Updated regex to match your transcript format
+            match = re.match(r"^\[(\d+\.\d+) - (\d+\.\d+)\]\s*(.*)$", line)
+            if match:
+                start_time = float(match.group(1))
+                end_time = float(match.group(2))
+                text = match.group(3)
+                # Create a Document for each transcript entry
+                entry = Document(
+                    page_content=text,
+                    metadata={
+                        "youtube_link": youtube_link_base,
+                        "start_time": start_time,
+                        "end_time": end_time,
+                        "timestamp_link": f"{youtube_link_base}&t={int(start_time)}"
+                    }
+                )
+                documents.append(entry)
+            else:
+                # Handle other lines if needed
+                continue
 
-# Split documents into smaller chunks for easier retrieval
+# Check documents length
+print(f"Number of documents loaded: {len(documents)}")
+
+# Continue with splitting documents if necessary
 text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-split_documents = []
-for document in documents:
-    split_texts = text_splitter.split_text(document.page_content)
-    for split_text in split_texts:
-        split_doc = Document(page_content=split_text, metadata=document.metadata)
-        split_documents.append(split_doc)
+split_documents = text_splitter.split_documents(documents)
+
+# Check split_documents length
+print(f"Number of documents after splitting: {len(split_documents)}")
 
 # Create OpenAI embeddings and use FAISS as the vector store for retrieval
 embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
+
+print("Generating embeddings...")
+
+# Generate embeddings and create the vector store
 vector_store = FAISS.from_documents(split_documents, embeddings)
 
 # Define the conversation history
@@ -114,19 +142,23 @@ async def chatbot_response(user_input, chat_history):
     filtered_docs = []
     for doc, score in relevant_docs:
         if score > threshold:
-            filtered_docs.append(doc)
+            filtered_docs.append((doc, score))
             relevant_text = doc.page_content
-            youtube_link = doc.metadata.get("youtube_link", "Link not found")
-            messages.append({"role": "system", "content": f"Consider this relevant information (relevance score: {score:.2f}): {relevant_text}"})
+            start_time = doc.metadata.get("start_time", 0)
+            timestamp_link = doc.metadata.get("timestamp_link", "Link not found")
+            messages.append({
+                "role": "system",
+                "content": f"Consider this relevant information (relevance score: {score:.2f}, timestamp: {start_time}s): {relevant_text}"
+            })
 
-        # Check token count and break if we're approaching the limit
-        if count_tokens(messages) > max_context_length:
-            break
+            # Check token count and break if we're approaching the limit
+            if count_tokens(messages) > max_context_length:
+                break
 
     if filtered_docs:
         messages.append({"role": "system", "content": f"Based on the above information, answer the user's question: {user_input}"})
     else:
-        youtube_link = "No relevant video found."
+        timestamp_link = "No relevant video found."
 
     # Final truncation to ensure we're within limits
     messages = truncate_messages(messages, max_context_length)
@@ -135,9 +167,15 @@ async def chatbot_response(user_input, chat_history):
     answer = response.choices[0].message.content
 
     if filtered_docs:
-        most_relevant_doc = max(relevant_docs, key=lambda x: x[1])[0]
-        most_relevant_link = most_relevant_doc.metadata.get("youtube_link", "Link not found")
-        answer_with_link_and_description = f"{answer}\n\nWatch the most relevant video here: {most_relevant_link}"
+        # Get the most relevant document (highest score)
+        most_relevant_doc, highest_score = max(filtered_docs, key=lambda x: x[1])
+        timestamp_link = most_relevant_doc.metadata.get("timestamp_link", "Link not found")
+        start_time = most_relevant_doc.metadata.get("start_time", 0)
+
+        answer_with_link_and_description = (
+            f"{answer}\n\n"
+            f"Watch the most relevant part of the video here: {timestamp_link}"
+        )
     else:
         answer_with_link_and_description = f"{answer}\n\nNo relevant video found for this query."
 
@@ -157,3 +195,44 @@ interface = gr.ChatInterface(
 # Run the interface
 if __name__ == "__main__":
     interface.launch()
+
+CHUNK_SIZE = 10000  # Adjust as needed
+
+def save_faiss_index(index, filepath):
+    faiss.write_index(index, filepath)
+
+def load_faiss_index(filepath):
+    return faiss.read_index(filepath)
+
+def process_documents_in_chunks(documents, embeddings, index_filepath):
+    index = None
+    if os.path.exists(index_filepath):
+        index = load_faiss_index(index_filepath)
+        print("Loaded existing FAISS index.")
+    else:
+        # Initialize a new index
+        embedding_size = len(embeddings.embed_query("test"))
+        index = faiss.IndexFlatL2(embedding_size)
+        print("Created new FAISS index.")
+
+    num_chunks = len(documents) // CHUNK_SIZE + int(len(documents) % CHUNK_SIZE > 0)
+    for i in range(num_chunks):
+        chunk_docs = documents[i*CHUNK_SIZE:(i+1)*CHUNK_SIZE]
+        texts = [doc.page_content for doc in chunk_docs]
+        metadatas = [doc.metadata for doc in chunk_docs]
+
+        # Generate embeddings for the chunk
+        chunk_embeddings = embeddings.embed_documents(texts)
+
+        # Convert embeddings to a numpy array
+        embedding_array = np.array(chunk_embeddings).astype("float32")
+
+        # Add embeddings to the index
+        index.add(embedding_array)
+
+        # Optionally, store metadata separately (e.g., in a list or a database)
+        # For simplicity, we'll assume we can retrieve documents by index
+
+        # Save the index after each chunk
+        save_faiss_index(index, index_filepath)
+        print(f"Processed chunk {i+1}/{num_chunks} and updated FAISS index.")

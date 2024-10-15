@@ -1,6 +1,18 @@
 Title: I lost my voice
 
-Description: What do I do?
-Comment Down below
+Description: What do I do? Comment Down below
 
-Transcript: I can't shoot today I have to make the comment right hi sir uh this is your script and you have to shoot today I can't shoot today my voice is gone can't you see I'm doing my Ginger and honey no script today no shooting today hey I need help from everyone out there my voice has gone do you have any comments that can help me to get my voice back what did your d ma do to get your voice back I'm doing honey and Ginger is there anything else
+Transcript:
+[0.20 - 3.08] I can't shoot
+[3.88 - 10.52] today I have to make the comment
+[7.08 - 12.88] right hi sir uh this is your script and
+[10.52 - 16.00] you have to shoot today I can't shoot
+[12.88 - 18.76] today my voice is gone can't you see I'm
+[16.00 - 21.68] doing my Ginger and honey no script
+[18.76 - 23.56] today no shooting today hey I need help
+[21.68 - 26.28] from everyone out there my voice has
+[23.56 - 28.56] gone do you have any comments that can
+[26.28 - 31.56] help me to get my voice back what did
+[28.56 - 33.88] your d ma do to get your voice back I'm
+[31.56 - 36.64] doing honey and Ginger is there anything
+[33.88 - 36.64] else

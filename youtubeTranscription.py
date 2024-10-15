@@ -64,6 +64,13 @@ def fetch_video_data(video_ids):
     pbar = tqdm(total=len(video_ids), desc="Processing videos", unit="video")
     
     for video_id in video_ids:
+        # Check if transcription file already exists
+        transcription_file = os.path.join('transcriptions', f"{video_id}_transcription.txt")
+        if os.path.exists(transcription_file):
+            pbar.write(f"Skipping Video ID: {video_id} (transcription already exists)")
+            pbar.update(1)
+            continue  # Skip to the next video
+
         try:
             # Fetch video details
             video_response = youtube.videos().list(

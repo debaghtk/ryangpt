@@ -230,6 +230,7 @@ async def main_chatbot(message, history):
 with gr.Blocks() as demo:
     chatbot = gr.Chatbot()
     msg = gr.Textbox()
+    submit = gr.Button("Submit")
     clear = gr.Button("Clear")
     audio_output = gr.Audio(label="Assistant's Voice")
 
@@ -249,6 +250,9 @@ with gr.Blocks() as demo:
         history[-1][1] = bot_response
         return history, audio_path
 
+    submit.click(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+        bot, chatbot, [chatbot, audio_output]
+    )
     msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
         bot, chatbot, [chatbot, audio_output]
     )

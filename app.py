@@ -11,6 +11,9 @@ import asyncio
 import re
 import faiss
 import numpy as np
+import requests
+import tempfile
+import random
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,8 +22,10 @@ load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=openai_api_key)
 
-# Define folder path
-folder_path = 'transcriptions'
+# Get ElevenLabs API key from environment variable
+elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
+# Specify the voice ID
+voice_id = os.getenv("ELEVENLABS_VOICE_ID")
 
 # Load and process the transcripts
 documents = []
@@ -124,7 +129,7 @@ def get_dynamic_threshold(scores):
     return mean_score * 0.8  # You can adjust this multiplier
 
 # Function to handle user input and generate response
-async def chatbot_response(user_input, chat_history):
+async def chatbot_response(user_input, history):
     global conversation_history
 
     max_context_length = 16000  # Leave some room for the response
@@ -179,22 +184,77 @@ async def chatbot_response(user_input, chat_history):
     else:
         answer_with_link_and_description = f"{answer}\n\nNo relevant video found for this query."
 
-    # Update conversation history, but limit it to maintain context without exceeding token limits
+    # Generate speech using ElevenLabs
+    headers = {
+        "Accept": "audio/mpeg",
+        "xi-api-key": elevenlabs_api_key,
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "text": answer,
+        "voice_settings": {
+            "stability": 0.5,
+            "similarity_boost": 0.75
+        }
+    }
+
+    tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+
+    response = requests.post(tts_url, json=data, headers=headers)
+
+    if response.status_code == 200:
+        # Create a temporary file
+        temp_audio_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        temp_audio_file.write(response.content)
+        temp_audio_file.close()
+        audio_file_path = temp_audio_file.name
+    else:
+        print(f"Error in ElevenLabs API: {response.status_code}, {response.text}")
+        audio_file_path = None
+
+    # Update conversation history
     conversation_history.append({"role": "user", "content": user_input})
     conversation_history.append({"role": "assistant", "content": answer_with_link_and_description})
     conversation_history = truncate_messages(conversation_history, max_context_length // 2)  # Use half the max length for history
 
-    return answer_with_link_and_description
+    return answer_with_link_and_description, audio_file_path
 
-# Create a Gradio ChatInterface for the chatbot
-interface = gr.ChatInterface(
-    fn=chatbot_response,
-    type="messages"  # Set type to 'messages'
-)
+async def main_chatbot(message, history):
+    print(f"Main chatbot function called. Message: {message}")
+    response, audio_path = await chatbot_response(message, history)
+    history.append({"role": "human", "content": message})
+    history.append({"role": "assistant", "content": response})
+    return history, audio_path
 
-# Run the interface
-if __name__ == "__main__":
-    interface.launch()
+with gr.Blocks() as demo:
+    chatbot = gr.Chatbot()
+    msg = gr.Textbox()
+    clear = gr.Button("Clear")
+    audio_output = gr.Audio(label="Assistant's Voice")
+
+    async def user(user_message, history):
+        print(f"User function called. Message: {user_message}")
+        return "", history + [[user_message, None]]
+
+    async def bot(history):
+        print(f"Bot function called. History length: {len(history)}")
+        if not history:
+            print("History is empty")
+            return history, None
+        
+        user_message = history[-1][0]
+        print(f"User message: {user_message}")
+        bot_response, audio_path = await chatbot_response(user_message, history[:-1])
+        history[-1][1] = bot_response
+        return history, audio_path
+
+    msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
+        bot, chatbot, [chatbot, audio_output]
+    )
+    clear.click(lambda: None, None, chatbot, queue=False)
+
+demo.launch()
 
 CHUNK_SIZE = 10000  # Adjust as needed
 
@@ -236,3 +296,9 @@ def process_documents_in_chunks(documents, embeddings, index_filepath):
         # Save the index after each chunk
         save_faiss_index(index, index_filepath)
         print(f"Processed chunk {i+1}/{num_chunks} and updated FAISS index.")
+
+def random_response(message, history):
+    response = random.choice(["Yes", "No"])
+    history.append({"role": "human", "content": message})
+    history.append({"role": "assistant", "content": response})
+    return history

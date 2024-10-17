@@ -29,7 +29,7 @@ voice_id = os.getenv("ELEVENLABS_VOICE_ID")
 
 # Load and process the transcripts
 documents = []
-folder_path = "transcriptions"  # Ensure this path is correct
+folder_path = "transcriptions-local" if os.getenv("ENVIRONMENT") == "local" else "transcriptions"
 
 for filename in os.listdir(folder_path):
     if filename.endswith(".txt"):
